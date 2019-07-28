@@ -158,12 +158,29 @@ func (operation *Operation) ParseParamComment(commentLine string, astFile *ast.F
 	case "query", "path", "header":
 		param = createParameter(paramType, description, name, TransToValidSchemeType(schemaType), required)
 	case "body":
-		param = createParameter(paramType, description, name, "object", required) // TODO: if Parameter types can be objects, but also primitives and arrays
-		if err := operation.registerSchemaType(schemaType, astFile); err != nil {
+		objType := "object"
+		if strings.HasPrefix(schemaType, "[]") == true {
+			objType = "array"
+		}
+
+		if schemaType == "string" {
+			objType = "string"
+		}
+		param = createParameter(paramType, description, name, objType, required)
+		if err := operation.registerSchemaType(strings.TrimPrefix(schemaType, "[]"), astFile); err != nil {
 			return err
 		}
-		param.Schema.Ref = spec.Ref{
-			Ref: jsonreference.MustCreateRef("#/definitions/" + schemaType),
+
+		switch objType {
+		case "array":
+			param.Schema.Items.Schema.Ref = spec.Ref{Ref: jsonreference.MustCreateRef("#/definitions/" + strings.TrimPrefix(schemaType, "[]"))}
+			break
+		case "string":
+			break
+		default:
+			param.Schema.Ref = spec.Ref{
+				Ref: jsonreference.MustCreateRef("#/definitions/" + strings.TrimPrefix(schemaType, "[]")),
+			}
 		}
 	case "formData":
 		param = createParameter(paramType, description, name, TransToValidSchemeType(schemaType), required)
@@ -690,6 +707,17 @@ func createParameter(paramType, description, paramName, schemaType string, requi
 		Required:    required,
 		In:          paramType,
 	}
+
+	if paramType == "body" && schemaType == "array" {
+		paramProps.Schema = spec.ArrayProperty(&spec.Schema{
+			SchemaProps: spec.SchemaProps{},
+		})
+		parameter := spec.Parameter{
+			ParamProps: paramProps,
+		}
+		return parameter
+	}
+
 	if paramType == "body" {
 		paramProps.Schema = &spec.Schema{
 			SchemaProps: spec.SchemaProps{
