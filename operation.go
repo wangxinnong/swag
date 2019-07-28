@@ -163,9 +163,6 @@ func (operation *Operation) ParseParamComment(commentLine string, astFile *ast.F
 			objType = "array"
 		}
 
-		if schemaType == "string" {
-			objType = "string"
-		}
 		param = createParameter(paramType, description, name, objType, required)
 		if err := operation.registerSchemaType(strings.TrimPrefix(schemaType, "[]"), astFile); err != nil {
 			return err
@@ -178,6 +175,9 @@ func (operation *Operation) ParseParamComment(commentLine string, astFile *ast.F
 		case "string":
 			break
 		default:
+			if schemaType == "string" {
+				break
+			}
 			param.Schema.Ref = spec.Ref{
 				Ref: jsonreference.MustCreateRef("#/definitions/" + strings.TrimPrefix(schemaType, "[]")),
 			}
